@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>德州MTT现场管理系统 | 买入功能增强版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f1f5f9; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 10px; }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 20px -12px rgba(0, 0, 0, 0.15); }
+        .timer-progress { transition: width 0.2s linear; }
+        .logo-glow { filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
+        .nav-active { background-color: #1e293b; color: white; }
+        .nav-inactive { color: #cbd5e1; }
+        .nav-inactive:hover { background-color: #334155; color: white; }
+        .view-pane { display: none; }
+        .view-pane.active-pane { display: block; }
+        .editable:hover { background-color: #f1f5f9; cursor: pointer; border-radius: 0.375rem; }
+        .editable-input { border: 1px solid #cbd5e1; border-radius: 0.375rem; padding: 0.25rem 0.5rem; font-weight: 500; }
+        .clickable-role {
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        .clickable-role:hover {
+            background-color: #e2e8f0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+        }
+        .buyin-history {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        .buyin-btn {
+            background-color: #8b5cf6;
+            color: white;
+            border-radius: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            transition: background-color 0.2s;
+        }
+        .buyin-btn:hover {
+            background-color: #7c3aed;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+<div class="flex h-screen overflow-hidden">
+    <!-- 侧边栏 -->
+    <aside class="w-72 bg-slate-900 text-white flex flex-col shadow-2xl z-10">
+        <div class="p-6 border-b border-slate-700 flex items-center gap-3">
+            <div class="relative">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-lg logo-glow">
+                    <i class="fas fa-club text-white text-2xl"></i>
+                </div>
+                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900"></div>
+            </div>
+            <div>
+                <h1 id="brandTitle" class="text-xl font-bold tracking-tight flex items-center gap-1 cursor-pointer hover:text-amber-300 transition">
+                    德州<span class="text-amber-400">MTT</span>·现场
+                    <i class="fas fa-pen text-xs text-slate-400 ml-1"></i>
+                </h1>
+                <p class="text-xs text-slate-400">专业锦标赛控制台</p>
+            </div>
+        </div>
+        <nav class="flex-1 py-6 px-4 space-y-2">
+            <a href="#" data-view="dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition nav-active">
+                <i class="fas fa-tachometer-alt w-5"></i><span>赛事仪表板</span>
+            </a>
+            <a href="#" data-view="players" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition nav-inactive">
+                <i class="fas fa-users w-5"></i><span>玩家库</span>
+            </a>
+            <a href="#" data-view="blindstruct" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition nav-inactive">
+                <i class="fas fa-chart-line w-5"></i><span>盲注模板</span>
+            </a>
+            <a href="#" data-view="prizeconfig" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition nav-inactive">
+                <i class="fas fa-trophy w-5"></i><span>奖池配置</span>
+            </a>
+            <a href="#" data-view="reports" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition nav-inactive">
+                <i class="fas fa-chart-pie w-5"></i><span>数据报表</span>
+            </a>
+        </nav>
+        <div class="p-5 border-t border-slate-800 text-xs text-slate-500">
+            <i class="fas fa-hourglass-half mr-1"></i> 倒计时可手动设置 · MTT现场版 v2.0
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="flex-1 overflow-y-auto p-6 md:p-8">
+        <!-- 顶部通用控件 -->
+        <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <h2 id="mainTitle" class="text-2xl font-bold text-slate-800 flex items-center gap-2 cursor-pointer hover:bg-slate-100 px-2 py-1 rounded-lg transition">
+                        <i class="fas fa-flag-checkered text-amber-600"></i> 
+                        <span id="mainTitleText">锦标赛指挥中心</span>
+                        <i class="fas fa-pen text-sm text-slate-400"></i>
+                    </h2>
+                    <button id="editTournamentNameBtn" class="bg-white border border-slate-300 hover:bg-slate-100 px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 shadow-sm">
+                        <i class="fas fa-edit text-amber-500"></i> 编辑赛事名称
+                    </button>
+                </div>
+                <p id="subtitleText" class="text-slate-500 text-sm mt-1 cursor-pointer hover:bg-slate-100 inline-block px-2 py-0.5 rounded">实时监控与配置 | 支持买入/补码功能 <i class="fas fa-pen text-xs ml-1"></i></p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-white rounded-full px-3 py-2 shadow-sm">
+                    <i class="fas fa-user-circle text-slate-600 text-2xl"></i>
+                    <span id="directorRole" class="text-sm font-medium clickable-role px-2 py-1 transition">现场总监</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 赛事选择器 + 关键操作 (全局) -->
+        <div class="bg-white rounded-2xl shadow-md p-5 mb-6 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-gamepad text-indigo-500"></i>
+                    <span class="font-semibold text-slate-700">当前赛事：</span>
+                    <select id="tournamentSelector" class="border border-slate-300 rounded-lg px-3 py-1.5 bg-slate-50 focus:ring-2 focus:ring-blue-300">
+                        <option value="summer_million">🌞 夏日百万赛</option>
+                        <option value="classic_high">👑 经典高额MTT</option>
+                    </select>
+                </div>
+                <button id="resetTournamentBtn" class="bg-slate-200 hover:bg-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1"><i class="fas fa-undo-alt"></i> 重置当前赛事</button>
+            </div>
+            <div class="flex gap-2">
+                <button id="nextLevelBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition"><i class="fas fa-step-forward"></i> 下一盲注级别</button>
+                <button id="syncBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 transition"><i class="fas fa-save"></i> 保存修改</button>
+            </div>
+        </div>
+
+        <!-- ========= 视图1: 赛事仪表板 (Dashboard) ========= -->
+        <div id="dashboardView" class="view-pane active-pane">
+            <!-- 倒计时专用控制卡片 (自定义设置) -->
+            <div class="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl shadow-xl mb-8 p-5 text-white">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-amber-500/20 p-3 rounded-full">
+                            <i class="fas fa-hourglass-half text-3xl text-amber-400"></i>
+                        </div>
+                        <div>
+                            <p class="text-slate-300 text-sm uppercase tracking-wide">当前盲注倒计时</p>
+                            <div class="text-4xl font-mono font-bold tracking-wider" id="countdownDisplay">00:00</div>
+                            <p class="text-xs text-slate-300 mt-1">剩余时间 / 级别时长 <span id="levelDurationInfo">0</span> 分钟</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 flex-wrap">
+                        <button id="timerStartBtn" class="bg-emerald-500 hover:bg-emerald-600 px-5 py-2 rounded-xl flex items-center gap-2 transition shadow-lg"><i class="fas fa-play"></i> 开始</button>
+                        <button id="timerPauseBtn" class="bg-yellow-500 hover:bg-yellow-600 px-5 py-2 rounded-xl flex items-center gap-2 transition shadow-lg"><i class="fas fa-pause"></i> 暂停</button>
+                        <button id="timerResetBtn" class="bg-slate-600 hover:bg-slate-500 px-5 py-2 rounded-xl flex items-center gap-2 transition shadow-lg"><i class="fas fa-undo-alt"></i> 重置当前级别</button>
+                    </div>
+                </div>
+                <!-- 自定义倒计时时间设置区域 -->
+                <div class="mt-5 pt-3 border-t border-slate-600 flex flex-wrap items-end gap-4">
+                    <div>
+                        <label class="text-xs text-slate-300 block mb-1">手动设置倒计时 (分钟)</label>
+                        <div class="flex gap-2 items-center">
+                            <input type="number" id="customMinutesInput" value="20" step="1" min="1" class="w-28 px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-500 focus:ring-2 focus:ring-amber-400">
+                            <button id="applyCustomTimeBtn" class="bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg text-sm font-semibold transition"><i class="fas fa-clock mr-1"></i> 应用</button>
+                            <div class="flex gap-1">
+                                <button class="quick-minute bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm" data-minute="25">25'</button>
+                                <button class="quick-minute bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm" data-minute="15">15'</button>
+                                <button class="quick-minute bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm" data-minute="10">10'</button>
+                                <button class="quick-minute bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm" data-minute="5">5'</button>
+                                <button class="quick-minute bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-lg text-sm" data-minute="4">4'</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">设置后将同步修改当前盲注级别的时长，并重置倒计时</p>
+                    </div>
+                </div>
+                <div class="mt-4 w-full bg-slate-600 rounded-full h-2.5 overflow-hidden">
+                    <div id="timerProgressBar" class="bg-amber-400 h-2.5 rounded-full timer-progress" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- 核心指标卡片 (货币符号改为人民币) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-2xl p-5 shadow-sm border-l-8 border-l-amber-500 card-hover">
+                    <div class="flex justify-between"><div><i class="fas fa-users text-3xl text-slate-400"></i></div><span class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">活跃</span></div>
+                    <p class="text-slate-500 text-sm mt-3">参赛人数</p>
+                    <p id="totalPlayersCount" class="text-3xl font-extrabold text-slate-800">0</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border-l-8 border-l-emerald-500 card-hover">
+                    <div><i class="fas fa-chart-line text-3xl text-slate-400"></i></div>
+                    <p class="text-slate-500 text-sm mt-3">当前盲注级别</p>
+                    <p id="currentLevelDisplay" class="text-2xl font-bold text-slate-800">Level 1</p>
+                    <p id="currentBlindDetail" class="text-xs text-slate-400">SB/BB: -/-</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border-l-8 border-l-sky-500 card-hover">
+                    <div><i class="fas fa-coins text-3xl text-slate-400"></i></div>
+                    <p class="text-slate-500 text-sm mt-3">总奖池</p>
+                    <p id="prizePoolAmount" class="text-2xl font-bold text-slate-800">¥0</p>
+                </div>
+                <div class="bg-white rounded-2xl p-5 shadow-sm border-l-8 border-l-purple-500 card-hover">
+                    <div><i class="fas fa-calculator text-3xl text-slate-400"></i></div>
+                    <p class="text-slate-500 text-sm mt-3">平均筹码</p>
+                    <p id="avgChips" class="text-2xl font-bold text-slate-800">0</p>
+                </div>
+            </div>
+
+            <!-- 前五名筹码图表 -->
+            <div class="bg-white rounded-2xl shadow-md p-5">
+                <h4 class="font-semibold text-slate-700 mb-3"><i class="fas fa-chart-simple text-indigo-500 mr-2"></i>前五名玩家筹码分布 (实时)</h4>
+                <canvas id="chipsChart" height="80" style="max-height: 200px;"></canvas>
+            </div>
+        </div>
+
+        <!-- ========= 视图2: 玩家库 (Players) ========= -->
+        <div id="playersView" class="view-pane">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div class="bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4 flex justify-between items-center">
+                    <h3 class="font-bold text-white text-lg"><i class="fas fa-user-plus mr-2"></i>玩家库 · 完整管理</h3>
+                    <button id="addPlayerBtnGlobal" class="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-3 py-1 rounded-lg"><i class="fas fa-plus-circle"></i> 注册新玩家</button>
+                </div>
+                <div class="p-4 max-h-[600px] overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-100 sticky top-0">
+                            <tr class="text-left">
+                                <th class="p-2">玩家昵称</th>
+                                <th>初始买入</th>
+                                <th>总买入</th>
+                                <th>当前筹码</th>
+                                <th>买入记录</th>
+                                <th>状态</th>
+                                <th class="w-28">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playerTableBodyFull"></tbody>
+                    </table>
+                    <div class="mt-3 text-xs text-slate-400">支持编辑筹码、淘汰/恢复、删除玩家，所有改动自动同步至仪表板。买入记录按时间倒序排列。</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 其他视图 (盲注模板、奖池配置、数据报表) -->
+        <div id="blindstructView" class="view-pane">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div class="bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4 flex justify-between items-center">
+                    <h3 class="font-bold text-white text-lg"><i class="fas fa-table-list mr-2"></i>盲注结构模板 · 完全控制</h3>
+                    <button id="addBlindLevelBtnGlobal" class="bg-amber-500 hover:bg-amber-600 text-white text-sm px-3 py-1 rounded-lg"><i class="fas fa-plus"></i> 增加级别</button>
+                </div>
+                <div class="p-4 max-h-[600px] overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-100 sticky top-0">
+                            <tr>
+                                <th>级别</th>
+                                <th>小盲</th>
+                                <th>大盲</th>
+                                <th>前注</th>
+                                <th>时长(min)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="blindTableBodyFull"></tbody>
+                    </table>
+                    <div class="text-xs text-slate-400 mt-3 italic">* 修改时长或使用仪表板的快捷设置，均会同步倒计时。</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="prizeconfigView" class="view-pane">
+            <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div class="bg-gradient-to-r from-slate-800 to-slate-700 px-5 py-4 flex justify-between items-center">
+                    <h3 class="font-bold text-white text-lg"><i class="fas fa-trophy mr-2"></i>奖池配置</h3>
+                    <button id="addPrizeRowBtnGlobal" class="bg-purple-500 hover:bg-purple-600 text-white text-sm px-3 py-1 rounded-lg"><i class="fas fa-chart-simple"></i> 新增名次</button>
+                </div>
+                <div class="p-4">
+                    <div class="mb-4 flex items-center gap-2 bg-slate-100 p-3 rounded-lg">
+                        <span class="font-medium">总奖池 (¥):</span>
+                        <input id="totalPrizeInputGlobal" type="number" class="border rounded px-2 py-1 w-32 text-right font-bold" step="1000" value="68500">
+                        <span class="text-xs">修改自动刷新</span>
+                    </div>
+                    <div class="max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100">
+                                <tr>
+                                    <th>名次</th>
+                                    <th>百分比(%)</th>
+                                    <th>奖金(¥)</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="prizeTableBodyFull"></tbody>
+                        </table>
+                        <div id="prizeWarningFull" class="text-xs text-red-500 mt-2 hidden">⚠️ 百分比总和不为100%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="reportsView" class="view-pane">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-2xl shadow-md p-5">
+                    <h3 class="font-semibold mb-3"><i class="fas fa-chart-pie mr-2 text-amber-500"></i>筹码分布饼图</h3>
+                    <canvas id="pieChart" height="200"></canvas>
+                </div>
+                <div class="bg-white rounded-2xl shadow-md p-5">
+                    <h3 class="font-semibold mb-3"><i class="fas fa-chart-line mr-2 text-indigo-500"></i>赛事统计</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span>当前级别</span>
+                            <span id="reportCurrentLevel">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>总级别数</span>
+                            <span id="reportTotalLevels">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>活跃玩家</span>
+                            <span id="reportActivePlayers">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>淘汰人数</span>
+                            <span id="reportEliminated">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>总筹码</span>
+                            <span id="reportTotalChips">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>总买入金额</span>
+                            <span id="reportTotalBuyin">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // ---------- 赛事数据模型 (所有金额内部存储为数字，展示时加¥) ----------
+    const tournamentsData = {
+        summer_million: {
+            id: "summer_million", name: "🌞 张文耀百万慈善赛", prizePool: 68500, currentLevelIdx: 2,
+            blindLevels: [
+                { level: 1, sb: 25, bb: 50, ante: 0, duration: 20 },
+                { level: 2, sb: 50, bb: 100, ante: 10, duration: 20 },
+                { level: 3, sb: 100, bb: 200, ante: 25, duration: 20 },
+                { level: 4, sb: 200, bb: 400, ante: 50, duration: 20 },
+                { level: 5, sb: 300, bb: 600, ante: 75, duration: 20 },
+                { level: 6, sb: 500, bb: 1000, ante: 100, duration: 20 },
+                { level: 7, sb: 800, bb: 1600, ante: 200, duration: 20 },
+                { level: 8, sb: 1200, bb: 2400, ante: 300, duration: 20 },
+                { level: 9, sb: 2000, bb: 4000, ante: 500, duration: 20 }
+            ],
+            players: [
+                { id: "p1", name: "李嘉轩", chips: 50000, status: "active", buyins: [{amount: 50000, time: Date.now()}] },
+                { id: "p2", name: "熊二哥", chips: 50000, status: "active", buyins: [{amount: 50000, time: Date.now()}] },
+                { id: "p3", name: "小六", chips: 50000, status: "active", buyins: [{amount: 50000, time: Date.now()}] },
+                { id: "p4", name: "普通玩家1", chips: 50000, status: "eliminated", buyins: [{amount: 50000, time: Date.now()}] },
+                { id: "p5", name: "普通玩家2", chips: 50000, status: "active", buyins: [{amount: 50000, time: Date.now()}, {amount: 10000, time: Date.now() + 1}] },
+                { id: "p6", name: "黄兄自带", chips: 1000000, status: "active", buyins: [{amount: 50000, time: Date.now()}] }
+            ],
+            prizeStructure: [{ rank: 1, percent: 40 }, { rank: 2, percent: 25 }, { rank: 3, percent: 15 }, { rank: 4, percent: 10 }, { rank: 5, percent: 6 }, { rank: 6, percent: 4 }]
+        },
+        classic_high: {
+            id: "classic_high", name: "👑 经典高额MTT", prizePool: 125000, currentLevelIdx: 1,
+            blindLevels: [
+                { level: 1, sb: 100, bb: 200, ante: 25, duration: 25 },
+                { level: 2, sb: 150, bb: 300, ante: 50, duration: 25 },
+                { level: 3, sb: 250, bb: 500, ante: 75, duration: 25 },
+                { level: 4, sb: 400, bb: 800, ante: 100, duration: 25 },
+                { level: 5, sb: 600, bb: 1200, ante: 200, duration: 25 },
+                { level: 6, sb: 1000, bb: 2000, ante: 300, duration: 25 }
+            ],
+            players: [
+                { id: "c1", name: "HighRoller", chips: 310000, status: "active", buyins: [{amount: 100000, time: Date.now()}] },
+                { id: "c2", name: "VegasPro", chips: 245000, status: "active", buyins: [{amount: 100000, time: Date.now()}] },
+                { id: "c3", name: "Maverick", chips: 178000, status: "active", buyins: [{amount: 100000, time: Date.now()}] },
+                { id: "c4", name: "LuckyDog", chips: 92000, status: "active", buyins: [{amount: 100000, time: Date.now()}] },
+                { id: "c5", name: "Ninja", chips: 45000, status: "eliminated", buyins: [{amount: 100000, time: Date.now()}] }
+            ],
+            prizeStructure: [{ rank: 1, percent: 45 }, { rank: 2, percent: 28 }, { rank: 3, percent: 17 }, { rank: 4, percent: 10 }]
+        }
+    };
+
+    let currentTournamentId = "summer_million";
+    let currentData = JSON.parse(JSON.stringify(tournamentsData.summer_million));
+    let chipsChartInstance = null, pieChartInstance = null;
+    let timerInterval = null, isTimerRunning = false, currentRemainingSeconds = 0;
+
+    // 自定义标题存储
+    let customBrandTitle = "德州MTT·现场";
+    let customMainTitle = "锦标赛指挥中心";
+    let customSubtitle = "实时监控与配置 | 支持买入/补码功能";
+    let customDirectorRole = "现场总监";
+
+    // 辅助函数: 更新所有显示金额的地方为人民币符号
+    function formatMoney(amount) {
+        return `¥${amount.toLocaleString()}`;
+    }
+
+    // 计算玩家的总买入金额
+    function getTotalBuyin(player) {
+        return player.buyins.reduce((sum, record) => sum + record.amount, 0);
+    }
+
+    // 计算赛事总买入金额
+    function calculateTotalBuyin() {
+        return currentData.players.reduce((sum, player) => sum + getTotalBuyin(player), 0);
+    }
+
+    // 刷新标题显示
+    function updateTitles() {
+        const brandElem = document.getElementById("brandTitle");
+        if(brandElem) brandElem.innerHTML = customBrandTitle + ' <i class="fas fa-pen text-xs text-slate-400 ml-1"></i>';
+        const mainTitleSpan = document.getElementById("mainTitleText");
+        if(mainTitleSpan) mainTitleSpan.innerText = customMainTitle;
+        const subtitleSpan = document.getElementById("subtitleText");
+        if(subtitleSpan) subtitleSpan.innerHTML = customSubtitle + ' <i class="fas fa-pen text-xs ml-1"></i>';
+        const directorSpan = document.getElementById("directorRole");
+        if(directorSpan) directorSpan.innerText = customDirectorRole;
+    }
+
+    // 编辑标题的函数
+    function editBrandTitle() {
+        let newTitle = prompt("请输入侧边栏品牌标题", customBrandTitle);
+        if(newTitle && newTitle.trim()) {
+            customBrandTitle = newTitle.trim();
+            updateTitles();
+        }
+    }
+    function editMainTitle() {
+        let newTitle = prompt("请输入主标题", customMainTitle);
+        if(newTitle && newTitle.trim()) {
+            customMainTitle = newTitle.trim();
+            updateTitles();
+        }
+    }
+    function editSubtitle() {
+        let newSub = prompt("请输入副标题", customSubtitle);
+        if(newSub && newSub.trim()) {
+            customSubtitle = newSub.trim();
+            updateTitles();
+        }
+    }
+    function editDirectorRole() {
+        let newRole = prompt("请输入角色名称（例如：赛事主管、总导演、操作员等）", customDirectorRole);
+        if(newRole && newRole.trim()) {
+            customDirectorRole = newRole.trim();
+            updateTitles();
+        }
+    }
+    function editTournamentName() {
+        let newName = prompt("请输入新的赛事名称", currentData.name);
+        if(newName && newName.trim()) {
+            currentData.name = newName.trim();
+            const selector = document.getElementById("tournamentSelector");
+            for(let i=0; i<selector.options.length; i++) {
+                if(selector.options[i].value === currentTournamentId) {
+                    selector.options[i].text = currentData.name;
+                    break;
+                }
+            }
+            if(tournamentsData[currentTournamentId]) {
+                tournamentsData[currentTournamentId].name = currentData.name;
+            }
+            fullRenderAll();
+        }
+    }
+
+    // 核心: 设置自定义倒计时
+    function setCustomTimerMinutes(minutes) {
+        if(!minutes || minutes <= 0) minutes = 1;
+        const level = currentData.blindLevels[currentData.currentLevelIdx];
+        if(level) {
+            level.duration = minutes;
+            currentRemainingSeconds = minutes * 60;
+            updateTimerDisplay();
+            if(isTimerRunning) {
+                stopTimer();
+                startTimer();
+            }
+            fullRenderAll();
+            const customInput = document.getElementById("customMinutesInput");
+            if(customInput) customInput.value = minutes;
+        }
+    }
+
+    // 倒计时相关函数
+    function initRemainingFromCurrentLevel() {
+        const level = currentData.blindLevels[currentData.currentLevelIdx];
+        currentRemainingSeconds = level ? level.duration * 60 : 0;
+        updateTimerDisplay();
+        const customInput = document.getElementById("customMinutesInput");
+        if(customInput && level) customInput.value = level.duration;
+    }
+    function updateTimerDisplay() {
+        const minutes = Math.floor(currentRemainingSeconds / 60);
+        const seconds = currentRemainingSeconds % 60;
+        const disp = document.getElementById("countdownDisplay");
+        if(disp) disp.innerText = `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+        const level = currentData.blindLevels[currentData.currentLevelIdx];
+        if(level && document.getElementById("timerProgressBar")) {
+            const total = level.duration * 60;
+            const percent = total > 0 ? (currentRemainingSeconds / total) * 100 : 0;
+            document.getElementById("timerProgressBar").style.width = `${Math.max(0, percent)}%`;
+            document.getElementById("levelDurationInfo") && (document.getElementById("levelDurationInfo").innerText = level.duration);
+        }
+    }
+    function stopTimer() { if(timerInterval){ clearInterval(timerInterval); timerInterval=null; } isTimerRunning=false; }
+    function startTimer() {
+        if(timerInterval) stopTimer();
+        if(currentRemainingSeconds <= 0) { autoAdvanceBlind(); return; }
+        isTimerRunning = true;
+        timerInterval = setInterval(() => {
+            if(!isTimerRunning) return;
+            if(currentRemainingSeconds <= 1) {
+                clearInterval(timerInterval); timerInterval=null; isTimerRunning=false;
+                autoAdvanceBlind();
+            } else { currentRemainingSeconds--; updateTimerDisplay(); }
+        }, 1000);
+    }
+    function autoAdvanceBlind() {
+        const wasRunning = isTimerRunning;
+        stopTimer();
+        if(currentData.currentLevelIdx + 1 < currentData.blindLevels.length) {
+            currentData.currentLevelIdx++;
+            const newLevel = currentData.blindLevels[currentData.currentLevelIdx];
+            currentRemainingSeconds = newLevel.duration * 60;
+            updateTimerDisplay();
+            fullRenderAll();
+            if(wasRunning) startTimer();
+        } else { alert("已是最终盲注级别"); updateTimerDisplay(); }
+    }
+    function resetCurrentTimer() {
+        const level = currentData.blindLevels[currentData.currentLevelIdx];
+        if(level) { currentRemainingSeconds = level.duration * 60; updateTimerDisplay(); if(isTimerRunning){ stopTimer(); startTimer(); } }
+    }
+    function goToNextBlind() {
+        const wasRun = isTimerRunning;
+        if(currentData.currentLevelIdx + 1 < currentData.blindLevels.length) {
+            currentData.currentLevelIdx++;
+            const newLevel = currentData.blindLevels[currentData.currentLevelIdx];
+            currentRemainingSeconds = newLevel.duration * 60;
+            updateTimerDisplay();
+            fullRenderAll();
+            if(wasRun) startTimer();
+        } else { alert("已是最终盲注级别"); }
+    }
+
+    // 全局渲染
+    function fullRenderAll() {
+        renderDashboardMetrics();
+        renderFullPlayerTable();
+        renderFullBlindTable();
+        renderFullPrizeTable();
+        renderReports();
+        updateCharts();
+        const prizeInput = document.getElementById("totalPrizeInputGlobal");
+        if(prizeInput) prizeInput.value = currentData.prizePool;
+        const customInput = document.getElementById("customMinutesInput");
+        const curLevel = currentData.blindLevels[currentData.currentLevelIdx];
+        if(customInput && curLevel) customInput.value = curLevel.duration;
+        const selector = document.getElementById("tournamentSelector");
+        if(selector && selector.options[selector.selectedIndex] && selector.options[selector.selectedIndex].value === currentTournamentId) {
+            selector.options[selector.selectedIndex].text = currentData.name;
+        }
+    }
+    function renderDashboardMetrics() {
+        const activePlayers = currentData.players.filter(p => p.status === "active").length;
+        document.getElementById("totalPlayersCount") && (document.getElementById("totalPlayersCount").innerText = activePlayers);
+        const totalChips = currentData.players.filter(p => p.status === "active").reduce((s,p)=>s+p.chips,0);
+        const avg = activePlayers ? Math.floor(totalChips / activePlayers) : 0;
+        document.getElementById("avgChips") && (document.getElementById("avgChips").innerHTML = avg.toLocaleString());
+        document.getElementById("prizePoolAmount") && (document.getElementById("prizePoolAmount").innerHTML = formatMoney(currentData.prizePool));
+        const lvl = currentData.blindLevels[currentData.currentLevelIdx];
+        if(lvl && document.getElementById("currentLevelDisplay")) {
+            document.getElementById("currentLevelDisplay").innerHTML = `Level ${lvl.level}`;
+            document.getElementById("currentBlindDetail").innerHTML = `SB ${lvl.sb} / BB ${lvl.bb}  Ante ${lvl.ante}`;
+        }
+    }
+    function renderFullPlayerTable() {
+        const tbody = document.getElementById("playerTableBodyFull");
+        if(!tbody) return;
+        tbody.innerHTML = "";
+        currentData.players.forEach((player, idx) => {
+            const row = tbody.insertRow(); row.className = "border-b";
+            row.insertCell(0).innerText = player.name; row.cells[0].className = "p-2 font-medium";
+
+            // 初始买入 - 只读，显示第一次买入金额
+            let initialBuyin = player.buyins.length > 0 ? player.buyins[0].amount : 0;
+            row.insertCell(1).innerText = formatMoney(initialBuyin);
+
+            // 总买入 - 只读，显示累计买入金额
+            row.insertCell(2).innerText = formatMoney(getTotalBuyin(player));
+
+            // 当前筹码 - 可编辑
+            let chipsCell = row.insertCell(3);
+            let chipsInput = document.createElement("input"); chipsInput.type = "number"; chipsInput.value = player.chips; chipsInput.className = "w-24 border rounded px-1";
+            chipsInput.addEventListener("change", (e) => { let nv = parseInt(e.target.value); if(!isNaN(nv) && nv>=0) player.chips = nv; fullRenderAll(); });
+            chipsCell.appendChild(chipsInput);
+
+            // 买入记录 - 显示最近几次
+            let historyCell = row.insertCell(4);
+            let historyDiv = document.createElement("div");
+            historyDiv.className = "buyin-history";
+            const recentRecords = [...player.buyins].reverse().slice(0, 3); // 倒序取前3条
+            historyDiv.innerHTML = recentRecords.map(r => `${formatMoney(r.amount)}`).join(', ');
+            
+            // 添加买入按钮
+            let buyinButton = document.createElement("button");
+            buyinButton.innerHTML = '<i class="fas fa-plus mr-1"></i>买入';
+            buyinButton.className = "buyin-btn";
+            buyinButton.onclick = () => {
+                let amountStr = prompt(`为 ${player.name} 买入多少筹码？`, "5000");
+                let amount = parseInt(amountStr);
+                if(amount && !isNaN(amount) && amount > 0) {
+                    player.buyins.push({ amount: amount, time: Date.now() });
+                    player.chips += amount;
+                    fullRenderAll();
+                }
+            };
+            
+            historyCell.appendChild(historyDiv);
+            historyCell.appendChild(buyinButton);
+
+            // 状态
+            let statusCell = row.insertCell(5);
+            let span = document.createElement("span"); span.className = `px-2 py-0.5 rounded-full text-xs font-semibold ${player.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`;
+            span.innerText = player.status === 'active' ? '活跃' : '淘汰'; statusCell.appendChild(span);
+
+            // 操作
+            let actionCell = row.insertCell(6);
+            let toggleBtn = document.createElement("button"); toggleBtn.innerText = player.status === 'active' ? '淘汰' : '恢复'; toggleBtn.className = "text-xs bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded mr-1";
+            toggleBtn.onclick = () => { player.status = player.status === 'active' ? 'eliminated' : 'active'; fullRenderAll(); };
+            let delBtn = document.createElement("button"); delBtn.innerHTML = '<i class="fas fa-times-circle text-red-500"></i>'; delBtn.className = "ml-1";
+            delBtn.onclick = () => { if(confirm(`移除 ${player.name}?`)){ currentData.players.splice(idx,1); fullRenderAll(); } };
+            actionCell.appendChild(toggleBtn); actionCell.appendChild(delBtn);
+        });
+    }
+    function renderFullBlindTable() {
+        const tbody = document.getElementById("blindTableBodyFull");
+        if(!tbody) return;
+        tbody.innerHTML = "";
+        currentData.blindLevels.forEach((lvl, idx) => {
+            const row = tbody.insertRow();
+            let cellLvl = row.insertCell(0); cellLvl.innerHTML = `<span class="font-mono ${idx===currentData.currentLevelIdx?'text-amber-600 font-bold':''}">${lvl.level}</span>`;
+            let sbCell = row.insertCell(1); let sbInp = document.createElement("input"); sbInp.type="number"; sbInp.value=lvl.sb; sbInp.className="w-20 border rounded"; sbInp.onchange=()=>{lvl.sb=parseInt(sbInp.value)||0; fullRenderAll();}; sbCell.appendChild(sbInp);
+            let bbCell = row.insertCell(2); let bbInp = document.createElement("input"); bbInp.type="number"; bbInp.value=lvl.bb; bbInp.className="w-20 border rounded"; bbInp.onchange=()=>{lvl.bb=parseInt(bbInp.value)||0; fullRenderAll();}; bbCell.appendChild(bbInp);
+            let anteCell = row.insertCell(3); let anteInp = document.createElement("input"); anteInp.type="number"; anteInp.value=lvl.ante; anteInp.className="w-20 border rounded"; anteInp.onchange=()=>{lvl.ante=parseInt(anteInp.value)||0; fullRenderAll();}; anteCell.appendChild(anteInp);
+            let durCell = row.insertCell(4); let durInp = document.createElement("input"); durInp.type="number"; durInp.value=lvl.duration; durInp.className="w-20 border rounded"; durInp.onchange=()=>{ let nd=parseInt(durInp.value)||1; lvl.duration=nd; if(idx===currentData.currentLevelIdx){ currentRemainingSeconds = nd*60; updateTimerDisplay(); if(isTimerRunning){ stopTimer(); startTimer(); } } fullRenderAll();}; durCell.appendChild(durInp);
+            let delCell = row.insertCell(5); let delBtn = document.createElement("button"); delBtn.innerHTML='<i class="fas fa-trash-alt text-red-400"></i>'; delBtn.onclick=()=>{if(currentData.blindLevels.length<=1){alert("至少保留一个级别");return;} currentData.blindLevels.splice(idx,1); currentData.blindLevels.forEach((l,i)=>l.level=i+1); if(currentData.currentLevelIdx>=currentData.blindLevels.length) currentData.currentLevelIdx=currentData.blindLevels.length-1; initRemainingFromCurrentLevel(); fullRenderAll(); if(isTimerRunning){stopTimer();}}; delCell.appendChild(delBtn);
+        });
+    }
+    function renderFullPrizeTable() {
+        const tbody = document.getElementById("prizeTableBodyFull");
+        if(!tbody) return;
+        tbody.innerHTML = "";
+        let totalPercent = 0;
+        currentData.prizeStructure.forEach((item, idx) => {
+            totalPercent += item.percent;
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = item.rank;
+            let percCell = row.insertCell(1); let percInp = document.createElement("input"); percInp.type="number"; percInp.step="0.5"; percInp.value=item.percent; percInp.className="w-20 border rounded"; percInp.onchange=()=>{ item.percent = parseFloat(percInp.value)||0; renderFullPrizeTable(); fullRenderAll(); }; percCell.appendChild(percInp);
+            let amount = (currentData.prizePool * item.percent / 100).toFixed(0);
+            row.insertCell(2).innerText = formatMoney(parseInt(amount));
+            let delCell = row.insertCell(3); let delBtn = document.createElement("button"); delBtn.innerHTML='<i class="fas fa-trash-alt text-red-400"></i>'; delBtn.onclick=()=>{if(currentData.prizeStructure.length<=1){alert("至少保留一个名次");return;} currentData.prizeStructure.splice(idx,1); currentData.prizeStructure.forEach((r,i)=>r.rank=i+1); renderFullPrizeTable(); fullRenderAll();}; delCell.appendChild(delBtn);
+        });
+        const warning = document.getElementById("prizeWarningFull");
+        if(Math.abs(totalPercent-100)>0.1) warning.classList.remove("hidden"); else warning.classList.add("hidden");
+    }
+    function updateCharts() {
+        const active = currentData.players.filter(p=>p.status==="active").sort((a,b)=>b.chips-a.chips).slice(0,5);
+        const ctx = document.getElementById('chipsChart')?.getContext('2d');
+        if(ctx && chipsChartInstance) chipsChartInstance.destroy();
+        if(ctx) chipsChartInstance = new Chart(ctx, { type:'bar', data:{ labels: active.map(p=>p.name), datasets:[{ label:'筹码量', data: active.map(p=>p.chips), backgroundColor:'#f59e0b' }] }, options:{ responsive: true } });
+        const pieCtx = document.getElementById('pieChart')?.getContext('2d');
+        if(pieCtx) {
+            if(pieChartInstance) pieChartInstance.destroy();
+            const top5 = active.slice(0,5); const otherChips = active.slice(5).reduce((s,p)=>s+p.chips,0);
+            const labels = top5.map(p=>p.name); const data = top5.map(p=>p.chips);
+            if(otherChips>0) { labels.push("其他玩家"); data.push(otherChips); }
+            pieChartInstance = new Chart(pieCtx, { type:'pie', data:{ labels, datasets:[{ data, backgroundColor:['#f59e0b','#3b82f6','#10b981','#8b5cf6','#ec489a','#6b7280'] }] } });
+        }
+    }
+    function renderReports() {
+        document.getElementById("reportCurrentLevel") && (document.getElementById("reportCurrentLevel").innerText = `Level ${currentData.blindLevels[currentData.currentLevelIdx]?.level || 0}`);
+        document.getElementById("reportTotalLevels") && (document.getElementById("reportTotalLevels").innerText = currentData.blindLevels.length);
+        const activeCount = currentData.players.filter(p=>p.status==="active").length;
+        document.getElementById("reportActivePlayers") && (document.getElementById("reportActivePlayers").innerText = activeCount);
+        document.getElementById("reportEliminated") && (document.getElementById("reportEliminated").innerText = currentData.players.length - activeCount);
+        const totalChips = currentData.players.reduce((s,p)=>s+p.chips,0);
+        document.getElementById("reportTotalChips") && (document.getElementById("reportTotalChips").innerText = totalChips.toLocaleString());
+        const totalBuyin = calculateTotalBuyin();
+        document.getElementById("reportTotalBuyin") && (document.getElementById("reportTotalBuyin").innerText = formatMoney(totalBuyin));
+    }
+    function addPlayerGlobal() {
+        let name = prompt("玩家昵称");
+        if(!name) return;
+        let chips = parseInt(prompt("初始筹码","50000"));
+        if(isNaN(chips)) chips=50000;
+        let buyin = parseInt(prompt("初始买入金额","50000"));
+        if(isNaN(buyin)) buyin=50000;
+        currentData.players.push({
+            id:"p_"+Date.now(),
+            name,
+            chips,
+            status:"active",
+            buyins: [{amount: buyin, time: Date.now()}]
+        });
+        fullRenderAll();
+    }
+    function addBlindLevelGlobal() { let last = currentData.blindLevels[currentData.blindLevels.length-1]; currentData.blindLevels.push({ level: currentData.blindLevels.length+1, sb: last?last.sb*2:100, bb: last?last.bb*2:200, ante: last?last.ante*2:25, duration:20 }); fullRenderAll(); }
+    function addPrizeRowGlobal() { currentData.prizeStructure.push({ rank: currentData.prizeStructure.length+1, percent: 2.0 }); fullRenderAll(); }
+    function resetTournament() {
+        stopTimer(); isTimerRunning=false;
+        const src = tournamentsData[currentTournamentId];
+        currentData = JSON.parse(JSON.stringify(src));
+        initRemainingFromCurrentLevel();
+        fullRenderAll();
+        document.getElementById("totalPrizeInputGlobal").value = currentData.prizePool;
+    }
+    function switchTournament(id) {
+        stopTimer(); isTimerRunning=false;
+        currentTournamentId = id;
+        currentData = JSON.parse(JSON.stringify(tournamentsData[id]));
+        initRemainingFromCurrentLevel();
+        fullRenderAll();
+        document.getElementById("totalPrizeInputGlobal").value = currentData.prizePool;
+    }
+
+    // 菜单切换
+    function initMenu() {
+        const navItems = document.querySelectorAll(".nav-item");
+        const panes = document.querySelectorAll(".view-pane");
+        navItems.forEach(item => {
+            item.addEventListener("click", (e) => {
+                e.preventDefault();
+                const view = item.getAttribute("data-view");
+                navItems.forEach(nav => { nav.classList.remove("nav-active"); nav.classList.add("nav-inactive"); });
+                item.classList.add("nav-active"); item.classList.remove("nav-inactive");
+                panes.forEach(pane => pane.classList.remove("active-pane"));
+                if(view === "dashboard") document.getElementById("dashboardView").classList.add("active-pane");
+                if(view === "players") document.getElementById("playersView").classList.add("active-pane");
+                if(view === "blindstruct") document.getElementById("blindstructView").classList.add("active-pane");
+                if(view === "prizeconfig") document.getElementById("prizeconfigView").classList.add("active-pane");
+                if(view === "reports") document.getElementById("reportsView").classList.add("active-pane");
+            });
+        });
+    }
+
+    // 绑定事件
+    document.getElementById("tournamentSelector")?.addEventListener("change", (e) => switchTournament(e.target.value));
+    document.getElementById("resetTournamentBtn")?.addEventListener("click", resetTournament);
+    document.getElementById("nextLevelBtn")?.addEventListener("click", goToNextBlind);
+    document.getElementById("timerStartBtn")?.addEventListener("click", startTimer);
+    document.getElementById("timerPauseBtn")?.addEventListener("click", stopTimer);
+    document.getElementById("timerResetBtn")?.addEventListener("click", resetCurrentTimer);
+    document.getElementById("applyCustomTimeBtn")?.addEventListener("click", () => { let mins = parseInt(document.getElementById("customMinutesInput").value); if(isNaN(mins) || mins < 1) mins = 1; setCustomTimerMinutes(mins); });
+    document.querySelectorAll(".quick-minute").forEach(btn => { btn.addEventListener("click", (e) => { let mins = parseInt(btn.getAttribute("data-minute")); if(!isNaN(mins)) setCustomTimerMinutes(mins); }); });
+    document.getElementById("addPlayerBtnGlobal")?.addEventListener("click", addPlayerGlobal);
+    document.getElementById("addBlindLevelBtnGlobal")?.addEventListener("click", addBlindLevelGlobal);
+    document.getElementById("addPrizeRowBtnGlobal")?.addEventListener("click", addPrizeRowGlobal);
+    document.getElementById("totalPrizeInputGlobal")?.addEventListener("change", (e) => { let val = parseInt(e.target.value); if(!isNaN(val) && val>=0) { currentData.prizePool = val; fullRenderAll(); } else e.target.value = currentData.prizePool; });
+    document.getElementById("syncBtn")?.addEventListener("click", () => alert("所有修改已同步至当前赛事 (模拟保存)"));
+    document.getElementById("brandTitle")?.addEventListener("click", editBrandTitle);
+    document.getElementById("mainTitle")?.addEventListener("click", editMainTitle);
+    document.getElementById("subtitleText")?.addEventListener("click", editSubtitle);
+    document.getElementById("editTournamentNameBtn")?.addEventListener("click", editTournamentName);
+    document.getElementById("directorRole")?.addEventListener("click", editDirectorRole);
+
+    initMenu();
+    initRemainingFromCurrentLevel();
+    fullRenderAll();
+    updateTitles();
+</script>
+</body>
+</html>
